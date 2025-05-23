@@ -456,30 +456,24 @@ export default function PopisApp() {
           </div>
 
           {/* Statistike */}
-          <div className="bg-gradient-to-r from-blue-50 to-indigo-50 p-5 rounded-xl mb-6 border border-blue-100">
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
-              <div className="bg-white rounded-lg p-3 shadow-sm">
-                <div className="text-2xl font-bold text-blue-600">{filteredItems.length}</div>
-                <div className="text-xs text-gray-600">Ukupno artikala</div>
-              </div>
-              <div className="bg-white rounded-lg p-3 shadow-sm">
-                <div className="text-2xl font-bold text-green-600">
-                  {Object.values(quantities).filter(q => q > 0).length}
-                </div>
-                <div className="text-xs text-gray-600">Sa količinama</div>
-              </div>
-              <div className="bg-white rounded-lg p-3 shadow-sm">
-                <div className="text-2xl font-bold text-purple-600">{sortedCategories.length}</div>
-                <div className="text-xs text-gray-600">Kategorija</div>
-              </div>
-              <div className="bg-white rounded-lg p-3 shadow-sm">
-                <div className="text-2xl font-bold text-orange-600">
-                  {Object.values(quantities).reduce((sum, q) => sum + (q || 0), 0).toFixed(0)}
-                </div>
-                <div className="text-xs text-gray-600">Ukupno komada</div>
-              </div>
-            </div>
-          </div>
+<div className="bg-gradient-to-r from-blue-50 to-indigo-50 p-5 rounded-xl mb-6 border border-blue-100">
+  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-center">
+    <div className="bg-white rounded-lg p-3 shadow-sm">
+      <div className="text-2xl font-bold text-blue-600">{filteredItems.length}</div>
+      <div className="text-xs text-gray-600">Ukupno artikala</div>
+    </div>
+    <div className="bg-white rounded-lg p-3 shadow-sm">
+      <div className="text-2xl font-bold text-green-600">
+        {Object.values(quantities).filter(q => q > 0).length}
+      </div>
+      <div className="text-xs text-gray-600">Sa količinama</div>
+    </div>
+    <div className="bg-white rounded-lg p-3 shadow-sm">
+      <div className="text-2xl font-bold text-purple-600">{sortedCategories.length}</div>
+      <div className="text-xs text-gray-600">Kategorija</div>
+    </div>
+  </div>
+</div>
 
           {/* Lista artikala po kategorijama */}
           <div className="space-y-4">
