@@ -2,33 +2,40 @@ import { initializeApp } from 'firebase/app';
 import { getFirestore, collection, addDoc, getDocs, deleteDoc, doc, onSnapshot, orderBy, query } from 'firebase/firestore';
 
 const firebaseConfig = {
-  apiKey: "AIzaSyAFKmB111lpF-bYI5o_hlmt2f--zPNh4Io",
-  authDomain: "trebovanje-aplikacija.firebaseapp.com",
-  projectId: "trebovanje-aplikacija",
-  storageBucket: "trebovanje-aplikacija.firebasestorage.app",
-  messagingSenderId: "840642827188",
-  appId: "1:840642827188:web:1fdb3041b621d8988a58e1",
-  measurementId: "G-08FQJYNYVX"
+  apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
+  authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
+  projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
+  storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
+  appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
+  measurementId: process.env.NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID
 };
 
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 
-// Redosled kategorija kao u vašem PDF-u
+// Novi redosled kategorija
 const categoryOrder = [
-  'Topli napici',
-  'Bezalkoholno piće', 
-  'Piva',
-  'Cideri',
-  'Žestoka pića',
-  'Vina butilirana',
-  'Vina 0,187'
+  'TOPLI NAPICI',
+  'BEZALKOHOLNA PIĆA',
+  'CEDEVITA I ENERGETSKA PIĆA',
+  'NEXT SOKOVI',
+  'PIVA',
+  'SOMERSBY',
+  'ŽESTOKA PIĆA',
+  'VISKI',
+  'BRENDI I KONJACI',
+  'LIKERI',
+  'DOMAĆA ALKOHOLNA PIĆA',
+  'BELA VINA',
+  'CRVENA VINA',
+  'ROZE VINA',
+  'VINA 0,187L'
 ];
 
-// Sortiranje artikala po PDF redosledu
+// Sortiranje artikala po redosledu kategorija
 const sortItemsByPDFOrder = (items) => {
   return items.sort((a, b) => {
-    // Prvo po kategoriji
     const catIndexA = categoryOrder.indexOf(a.category);
     const catIndexB = categoryOrder.indexOf(b.category);
     
@@ -36,7 +43,6 @@ const sortItemsByPDFOrder = (items) => {
       return catIndexA - catIndexB;
     }
     
-    // Zatim alfabetski unutar kategorije
     return a.name.localeCompare(b.name);
   });
 };
@@ -116,7 +122,7 @@ export const listenToItems = (callback) => {
   });
 };
 
-// Dodaje novi artikal (kao u trebovanje)
+// Dodaje novi artikal
 export const saveItemToFirebase = async (itemData) => {
   try {
     const docRef = await addDoc(collection(db, 'items'), {
