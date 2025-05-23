@@ -1,26 +1,15 @@
 import { useState, useEffect } from 'react';
 import { getInventoryFromFirebase, deleteInventoryFromFirebase } from '../utils/firebase';
 import Link from 'next/link';
-import { ArrowLeft, FileText, Trash2, Download, Calendar, User } from 'lucide-react';
-import dynamic from 'next/dynamic';
-
-// Lazy load PDF generator
-const PDFGenerator = dynamic(() => import('../utils/pdfGenerator'), {
-  ssr: false,
-  loading: () => <p className="text-sm text-gray-500">Priprema PDF generatora...</p>
-});
+import { ArrowLeft, FileText, Trash2, Download, Calendar, User, Package } from 'lucide-react';
 
 export default function Istorija() {
   const [inventory, setInventory] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [pdfGenerator, setPdfGenerator] = useState(null);
+  const [generatingPDF, setGeneratingPDF] = useState(null);
 
   useEffect(() => {
     loadInventory();
-    // Dinamički učitaj PDF generator
-    import('../utils/pdfGenerator').then(module => {
-      setPdfGenerator(() => module.generatePDF);
-    });
   }, []);
 
   const loadInventory = async () => {
@@ -46,11 +35,25 @@ export default function Istorija() {
     }
   };
 
-  const handleGeneratePDF = (inv) => {
-    if (pdfGenerator) {
-      pdfGenerator(inv);
-    } else {
-      alert('PDF generator se još učitava...');
+  const handleGeneratePDF = async (inv) => {
+    setGeneratingPDF(inv.id);
+    try {
+      // Dinamički učitaj PDF generator
+      const { generatePDF, generatePDFFromHTML } = await import('../utils/pdfGenerator');
+      
+      // Pokušaj prvo sa HTML2Canvas pristupom za bolju podršku srpskih karaktera
+      try {
+        await generatePDFFromHTML(inv);
+      } catch (htmlError) {
+        console.warn('HTML2Canvas PDF generation failed, falling back to jsPDF:', htmlError);
+        // Fallback na obični jsPDF
+        generatePDF(inv);
+      }
+    } catch (error) {
+      console.error('PDF generation error:', error);
+      alert('Greška pri generisanju PDF-a: ' + error.message);
+    } finally {
+      setGeneratingPDF(null);
     }
   };
 
@@ -96,9 +99,14 @@ export default function Istorija() {
               </div>
             ) : (
               <div className="space-y-4">
-                <p className="text-sm text-gray-600 mb-4">
-                  Ukupno popisa: <span className="font-bold">{inventory.length}</span>
-                </p>
+                <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
+                  <p className="text-sm text-blue-700 mb-2">
+                    📊 <strong>Ukupno popisa:</strong> {inventory.length}
+                  </p>
+                  <p className="text-xs text-blue-600">
+                    💡 <strong>Napomena:</strong> PDF izveštaji automatski konvertuju srpske karaktere (č, ć, š, ž, đ) u latinične za bolje prikazivanje.
+                  </p>
+                </div>
                 
                 {inventory.map((inv) => (
                   <div 
@@ -111,14 +119,17 @@ export default function Istorija() {
                           <Calendar className="w-4 h-4 text-gray-400" />
                           <p className="font-bold text-lg">{inv.datum}</p>
                         </div>
-                        <div className="flex items-center gap-3 text-sm text-gray-600">
+                        <div className="flex items-center gap-3 text-sm text-gray-600 mb-2">
                           <User className="w-4 h-4 text-gray-400" />
                           <span>Sastavio: <strong>{inv.sastavio}</strong></span>
                         </div>
-                        <div className="mt-2">
+                        <div className="flex flex-wrap gap-2">
                           <div className="inline-flex items-center gap-2 bg-blue-50 text-blue-700 px-3 py-1 rounded-full text-sm">
                             <Package className="w-3 h-3" />
                             {inv.itemsWithQuantity} / {inv.totalItems} artikala
+                          </div>
+                          <div className="inline-flex items-center gap-2 bg-green-50 text-green-700 px-3 py-1 rounded-full text-sm">
+                            📦 Ukupno: {inv.items?.reduce((sum, item) => sum + (item.quantity || 0), 0).toFixed(0)} kom
                           </div>
                         </div>
                       </div>
@@ -126,10 +137,19 @@ export default function Istorija() {
                       <div className="flex gap-2 ml-4">
                         <button
                           onClick={() => handleGeneratePDF(inv)}
-                          className="bg-blue-500 text-white p-3 rounded-lg hover:bg-blue-600 transition-colors group"
+                          disabled={generatingPDF === inv.id}
+                          className={`p-3 rounded-lg transition-colors group ${
+                            generatingPDF === inv.id 
+                              ? 'bg-blue-300 text-blue-700 cursor-not-allowed' 
+                              : 'bg-blue-500 text-white hover:bg-blue-600'
+                          }`}
                           title="Generiši PDF"
                         >
-                          <Download className="w-5 h-5 group-hover:animate-bounce" />
+                          {generatingPDF === inv.id ? (
+                            <div className="w-5 h-5 border-2 border-blue-700 border-t-transparent rounded-full animate-spin"></div>
+                          ) : (
+                            <Download className="w-5 h-5 group-hover:animate-bounce" />
+                          )}
                         </button>
                         <button
                           onClick={() => handleDelete(inv.id)}
@@ -139,6 +159,13 @@ export default function Istorija() {
                           <Trash2 className="w-5 h-5" />
                         </button>
                       </div>
+                    </div>
+
+                    {/* Dodatne informacije o popisu */}
+                    <div className="mt-3 pt-3 border-t border-gray-100">
+                      <p className="text-xs text-gray-500">
+                        Kreiran: {new Date(inv.timestamp).toLocaleString('sr-RS')}
+                      </p>
                     </div>
                   </div>
                 ))}
