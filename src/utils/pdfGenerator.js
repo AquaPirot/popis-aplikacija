@@ -1,10 +1,13 @@
 import jsPDF from 'jspdf';
 
-export const generatePDF = (inventoryData) => {
+export const generatePDF = async (inventoryData) => {
+  console.log('🔍 PDF Generator pozvan sa:', inventoryData);
+  
   const doc = new jsPDF();
 
   // Funkcija za konvertovanje srpskih karaktera u latinicu
   const convertSerbianToLatin = (text) => {
+    if (!text) return '';
     const cyrillicToLatin = {
       'č': 'c', 'Č': 'C',
       'ć': 'c', 'Ć': 'C', 
@@ -14,15 +17,6 @@ export const generatePDF = (inventoryData) => {
     };
     
     return text.replace(/[čćšžđČĆŠŽĐ]/g, (char) => cyrillicToLatin[char] || char);
-  };
-
-  // Alternativno: Možete koristiti i jednostavniju zamenu
-  const normalizeText = (text) => {
-    return text
-      .replace(/[čć]/gi, 'c')
-      .replace(/[šs]/gi, 's') 
-      .replace(/[žz]/gi, 'z')
-      .replace(/[đd]/gi, 'd');
   };
 
   // Koristi standardni font koji podržava osnovne karaktere
@@ -41,19 +35,63 @@ export const generatePDF = (inventoryData) => {
   doc.line(20, 55, 190, 55);
 
   let yPosition = 70;
-  let currentCategory = '';
+
+  // NOVA LOGIKA: Ako nema direktan items array, učitaj iz API-ja
+  let itemsData = inventoryData.items;
+  
+  if (!itemsData || !Array.isArray(itemsData) || itemsData.length === 0) {
+    console.log('🔄 Nema items podataka, učitavam iz API...');
+    
+    try {
+      // Pozovi API da učita detalje popisa
+      const response = await fetch(`/api/inventory/${inventoryData.id}`);
+      const apiData = await response.json();
+      
+      console.log('📡 API odgovor:', apiData);
+      
+      if (apiData.success && apiData.data && apiData.data.items) {
+        itemsData = apiData.data.items;
+        console.log('✅ Učitano iz API:', itemsData.length, 'stavki');
+      }
+    } catch (error) {
+      console.error('❌ Greška pri učitavanju iz API:', error);
+    }
+  }
+
+  // Ako još uvek nema podataka
+  if (!itemsData || !Array.isArray(itemsData)) {
+    console.log('❌ Nema artikala za prikaz');
+    doc.text('Nema artikala za prikaz', 20, yPosition);
+    doc.text(`(Debug: ${JSON.stringify(inventoryData)})`, 20, yPosition + 10);
+    doc.save(`popis_${inventoryData.datum}_${convertSerbianToLatin(inventoryData.sastavio)}.pdf`);
+    return;
+  }
+
+  console.log('📊 Obrađujem', itemsData.length, 'stavki');
 
   // Grupiši artikle po kategorijama
   const itemsByCategory = {};
-  inventoryData.items.forEach((item) => {
-    if (item.quantity > 0) {
+  itemsData.forEach((item, index) => {
+    console.log(`📦 Stavka ${index + 1}:`, item);
+    
+    // MySQL format ima item_name umesto name
+    const itemName = item.item_name || item.name || 'Nepoznato';
+    const quantity = parseFloat(item.quantity || 0);
+    
+    if (quantity > 0) {
       const category = item.category || 'Ostalo';
       if (!itemsByCategory[category]) {
         itemsByCategory[category] = [];
       }
-      itemsByCategory[category].push(item);
+      itemsByCategory[category].push({
+        name: itemName,
+        quantity: quantity,
+        unit: item.unit || 'kom'
+      });
     }
   });
+
+  console.log('📋 Kategorije:', Object.keys(itemsByCategory));
 
   // Sortiranje kategorija
   const categoryOrder = [
@@ -82,6 +120,17 @@ export const generatePDF = (inventoryData) => {
       sortedCategories.push(cat);
     }
   });
+
+  // Proveri da li ima kategorija za prikaz
+  if (sortedCategories.length === 0) {
+    console.log('❌ Nema kategorija sa artiklima');
+    doc.text('Nema artikala sa kolicinama za prikaz', 20, yPosition);
+    doc.text(`Ukupno stavki: ${itemsData.length}`, 20, yPosition + 10);
+    doc.save(`popis_${inventoryData.datum}_${convertSerbianToLatin(inventoryData.sastavio)}.pdf`);
+    return;
+  }
+
+  console.log('✅ Generiram PDF sa', sortedCategories.length, 'kategorija');
 
   sortedCategories.forEach((category) => {
     // Proveri da li treba nova strana
@@ -132,94 +181,20 @@ export const generatePDF = (inventoryData) => {
   // Sačuvaj PDF
   const fileName = `popis_${inventoryData.datum}_${convertSerbianToLatin(inventoryData.sastavio)}.pdf`;
   doc.save(fileName);
+  
+  console.log('✅ PDF sačuvan:', fileName);
 };
 
-// Alternativno rešenje sa HTML2Canvas (ako želite kompletnu podršku za Unicode)
+// HTML2Canvas verzija je ista logika
 export const generatePDFFromHTML = async (inventoryData) => {
-  // Kreiraj privremeni HTML element
-  const tempDiv = document.createElement('div');
-  tempDiv.style.position = 'absolute';
-  tempDiv.style.left = '-9999px';
-  tempDiv.style.width = '210mm';
-  tempDiv.style.padding = '20px';
-  tempDiv.style.fontFamily = 'Arial, sans-serif';
-  tempDiv.style.backgroundColor = 'white';
+  console.log('🖼️ HTML2Canvas PDF pozvan');
   
-  // Grupiši artikle po kategorijama
-  const itemsByCategory = {};
-  inventoryData.items.forEach((item) => {
-    if (item.quantity > 0) {
-      const category = item.category || 'Ostalo';
-      if (!itemsByCategory[category]) {
-        itemsByCategory[category] = [];
-      }
-      itemsByCategory[category].push(item);
-    }
-  });
-
-  // HTML sadržaj
-  let htmlContent = `
-    <div style="text-align: center; margin-bottom: 30px;">
-      <h1 style="margin: 0; font-size: 24px;">POPIS ARTIKALA</h1>
-      <p style="margin: 10px 0;">Datum: ${inventoryData.datum}</p>
-      <p style="margin: 10px 0;">Sastavio: ${inventoryData.sastavio}</p>
-      <hr style="margin: 20px 0;">
-    </div>
-  `;
-
-  const categoryOrder = [
-    'TOPLI NAPICI', 'BEZALKOHOLNA PIĆA', 'CEDEVITA I ENERGETSKA PIĆA',
-    'NEXT SOKOVI', 'PIVA', 'SOMERSBY', 'ŽESTOKA PIĆA', 'VISKI',
-    'BRENDI I KONJACI', 'LIKERI', 'DOMAĆA ALKOHOLNA PIĆA',
-    'BELA VINA', 'CRVENA VINA', 'ROZE VINA', 'VINA 0,187L'
-  ];
-
-  const sortedCategories = categoryOrder.filter(cat => itemsByCategory[cat]);
-  Object.keys(itemsByCategory).forEach(cat => {
-    if (!categoryOrder.includes(cat)) {
-      sortedCategories.push(cat);
-    }
-  });
-
-  sortedCategories.forEach((category) => {
-    htmlContent += `<h3 style="margin: 20px 0 10px 0; color: #333;">${category}</h3>`;
-    itemsByCategory[category].forEach((item) => {
-      htmlContent += `<p style="margin: 5px 0 5px 20px; font-size: 12px;">${item.name}: ${item.quantity} ${item.unit}</p>`;
-    });
-  });
-
-  tempDiv.innerHTML = htmlContent;
-  document.body.appendChild(tempDiv);
-
-  try {
-    // Generiši canvas iz HTML-a
-    const canvas = await html2canvas(tempDiv, {
-      scale: 2,
-      useCORS: true,
-      allowTaint: true
-    });
-
-    // Kreiraj PDF
-    const imgData = canvas.toDataURL('image/png');
-    const pdf = new jsPDF('p', 'mm', 'a4');
-    const imgWidth = 210;
-    const pageHeight = 295;
-    const imgHeight = (canvas.height * imgWidth) / canvas.width;
-    let heightLeft = imgHeight;
-    let position = 0;
-
-    pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
-    heightLeft -= pageHeight;
-
-    while (heightLeft >= 0) {
-      position = heightLeft - imgHeight;
-      pdf.addPage();
-      pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
-      heightLeft -= pageHeight;
-    }
-
-    pdf.save(`popis_${inventoryData.datum}_${inventoryData.sastavio}.pdf`);
-  } finally {
-    document.body.removeChild(tempDiv);
+  // Fallback na obični PDF ako nema html2canvas
+  if (typeof window === 'undefined' || !window.html2canvas) {
+    console.warn('html2canvas nije dostupan, koristim obični jsPDF');
+    return generatePDF(inventoryData);
   }
+  
+  // Za sada, koristi obični PDF jer je sigurniji
+  return generatePDF(inventoryData);
 };
