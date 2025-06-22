@@ -12,6 +12,7 @@ export default function PopisApp() {
   const [loading, setLoading] = useState(true);
   const [openCategories, setOpenCategories] = useState([]);
   const [showAddModal, setShowAddModal] = useState(false);
+  const [dynamicCategories, setDynamicCategories] = useState([]);
 
   // TAČAN REDOSLED IZ SQL-a
   const EXACT_ITEMS_ORDER = [
@@ -50,6 +51,20 @@ export default function PopisApp() {
     'VINA 0,187L'
   ];
 
+  // Funkcija za ažuriranje kategorija iz baze
+  const updateCategoriesFromItems = (items) => {
+    const uniqueCategories = [...new Set(items.map(item => item.category))];
+    
+    // Kombinuj osnovne kategorije sa onima iz baze
+    const sortedCategories = [
+      ...categoryOrder.filter(cat => uniqueCategories.includes(cat)),
+      ...uniqueCategories.filter(cat => !categoryOrder.includes(cat)).sort()
+    ];
+    
+    setDynamicCategories(sortedCategories);
+    console.log('📋 Ažurirane kategorije:', sortedCategories);
+  };
+
   // SORTIRANJE PO TAČNOM REDOSLEDU
   const sortItemsByExactOrder = (items) => {
     return items.sort((a, b) => {
@@ -84,6 +99,7 @@ export default function PopisApp() {
       try {
         const allItems = await getItemsFromDatabase();
         setItems(allItems);
+        updateCategoriesFromItems(allItems); // Ažuriraj kategorije
         setLoading(false);
       } catch (error) {
         console.error('Error loading items:', error);
@@ -398,10 +414,11 @@ export default function PopisApp() {
         <AddItemModal 
           show={showAddModal} 
           onClose={() => setShowAddModal(false)}
-          categories={categoryOrder}
+          categories={dynamicCategories}
           onItemAdded={async () => {
             const allItems = await getItemsFromDatabase();
             setItems(allItems);
+            updateCategoriesFromItems(allItems); // Ažuriraj kategorije nakon dodavanja
           }}
         />
       )}
@@ -409,7 +426,7 @@ export default function PopisApp() {
   );
 }
 
-// Modal za dodavanje novog artikla
+// Modal za dodavanje novog artikla - KOMPLETNA POPRAVKA
 function AddItemModal({ show, onClose, categories, onItemAdded }) {
   const [formData, setFormData] = useState({
     name: '',
@@ -418,6 +435,66 @@ function AddItemModal({ show, onClose, categories, onItemAdded }) {
     unit: 'kom'
   });
   const [saving, setSaving] = useState(false);
+  const [allCategories, setAllCategories] = useState([]);
+
+  // Osnovne kategorije
+  const defaultCategories = [
+    'TOPLI NAPICI',
+    'BEZALKOHOLNA PIĆA', 
+    'CEDEVITA I ENERGETSKA PIĆA',
+    'NEXT SOKOVI',
+    'PIVA',
+    'SOMERSBY',
+    'ŽESTOKA PIĆA',
+    'VISKI',
+    'BRENDI I KONJACI',
+    'LIKERI',
+    'DOMAĆA ALKOHOLNA PIĆA',
+    'BELA VINA',
+    'CRVENA VINA',
+    'ROZE VINA',
+    'VINA 0,187L'
+  ];
+
+  // Funkcija za ažuriranje liste kategorija iz baze
+  const updateCategoriesFromDatabase = async () => {
+    try {
+      console.log('🔄 Ažuriram kategorije iz baze...');
+      
+      const items = await getItemsFromDatabase();
+      const uniqueCategories = [...new Set(items.map(item => item.category))];
+      
+      console.log('📋 Kategorije iz baze:', uniqueCategories);
+      
+      // Kombinuj osnovne kategorije sa onima iz baze
+      const sortedCategories = [
+        ...defaultCategories.filter(cat => uniqueCategories.includes(cat)),
+        ...uniqueCategories.filter(cat => !defaultCategories.includes(cat)).sort()
+      ];
+
+      console.log('✅ Finalne kategorije:', sortedCategories);
+      setAllCategories(sortedCategories);
+    } catch (error) {
+      console.error('❌ Greška pri ažuriranju kategorija:', error);
+      // Ako ne može da učita iz baze, koristi osnovne
+      setAllCategories(defaultCategories);
+    }
+  };
+
+  // Učitaj kategorije kada se modal otvori
+  useEffect(() => {
+    if (show) {
+      console.log('🎯 Modal otvoren, učitavam kategorije...');
+      updateCategoriesFromDatabase();
+    }
+  }, [show]);
+
+  // Takođe ažuriraj kategorije ako se promeni categories prop
+  useEffect(() => {
+    if (categories && categories.length > 0) {
+      setAllCategories(categories);
+    }
+  }, [categories]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -441,10 +518,15 @@ function AddItemModal({ show, onClose, categories, onItemAdded }) {
         unit: formData.unit
       };
 
+      console.log('➕ Dodajem artikal:', itemData);
       await addItemToDatabase(itemData);
       
       alert('Artikal je uspešno dodat!');
       setFormData({ name: '', category: '', newCategory: '', unit: 'kom' });
+      
+      // Ažuriraj kategorije nakon dodavanja (nova kategorija će biti uključena)
+      await updateCategoriesFromDatabase();
+      
       onClose();
       
       if (onItemAdded) {
@@ -462,29 +544,42 @@ function AddItemModal({ show, onClose, categories, onItemAdded }) {
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
       <div className="bg-white rounded-2xl p-6 w-full max-w-md">
-        <h2 className="text-xl font-bold mb-4">Dodaj novi artikal</h2>
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-xl font-bold">Dodaj novi artikal</h2>
+          <div className="text-xs text-gray-500">
+            Kategorija: {allCategories.length} dostupnih
+          </div>
+        </div>
         
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label className="block mb-2 font-medium">Kategorija:</label>
             <select
               value={formData.category}
-              onChange={(e) => setFormData({...formData, category: e.target.value})}
+              onChange={(e) => setFormData({...formData, category: e.target.value, newCategory: ''})}
               className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-blue-200"
             >
               <option value="">Izaberi postojeću kategoriju</option>
-              {categories.map(cat => (
+              {allCategories.map(cat => (
                 <option key={cat} value={cat}>{cat}</option>
               ))}
             </select>
             
+            <div className="mt-2 mb-1 text-center text-gray-500 text-sm font-medium">ILI</div>
+            
             <input
               type="text"
               value={formData.newCategory}
-              onChange={(e) => setFormData({...formData, newCategory: e.target.value})}
-              className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-blue-200 mt-2"
-              placeholder="Ili unesite novu kategoriju"
+              onChange={(e) => setFormData({...formData, newCategory: e.target.value, category: ''})}
+              className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-blue-200"
+              placeholder="Unesite potpuno novu kategoriju"
             />
+            
+            {formData.newCategory && (
+              <div className="mt-1 text-xs text-green-600">
+                ✅ Kreiraće se nova kategorija: "{formData.newCategory.toUpperCase()}"
+              </div>
+            )}
           </div>
 
           <div>
