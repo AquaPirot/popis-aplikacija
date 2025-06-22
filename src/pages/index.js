@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { getItemsFromDatabase, saveInventoryToDatabase, addItemToDatabase } from '../utils/storage';
 
@@ -51,8 +51,8 @@ export default function PopisApp() {
     'VINA 0,187L'
   ];
 
-  // Funkcija za ažuriranje kategorija iz baze
-  const updateCategoriesFromItems = (items) => {
+  // Funkcija za ažuriranje kategorija iz baze - useCallback da se izbegne warning
+  const updateCategoriesFromItems = useCallback((items) => {
     const uniqueCategories = [...new Set(items.map(item => item.category))];
     
     // Kombinuj osnovne kategorije sa onima iz baze
@@ -63,7 +63,7 @@ export default function PopisApp() {
     
     setDynamicCategories(sortedCategories);
     console.log('📋 Ažurirane kategorije:', sortedCategories);
-  };
+  }, []);
 
   // SORTIRANJE PO TAČNOM REDOSLEDU
   const sortItemsByExactOrder = (items) => {
@@ -109,7 +109,7 @@ export default function PopisApp() {
     };
 
     loadItems();
-  }, []);
+  }, [updateCategoriesFromItems]);
 
   const handleQuantityChange = (itemId, value) => {
     const numValue = value === '' ? '' : parseInt(value) || 0;
@@ -456,8 +456,8 @@ function AddItemModal({ show, onClose, categories, onItemAdded }) {
     'VINA 0,187L'
   ];
 
-  // Funkcija za ažuriranje liste kategorija iz baze
-  const updateCategoriesFromDatabase = async () => {
+  // Funkcija za ažuriranje liste kategorija iz baze - useCallback da se izbegne warning
+  const updateCategoriesFromDatabase = useCallback(async () => {
     try {
       console.log('🔄 Ažuriram kategorije iz baze...');
       
@@ -479,7 +479,7 @@ function AddItemModal({ show, onClose, categories, onItemAdded }) {
       // Ako ne može da učita iz baze, koristi osnovne
       setAllCategories(defaultCategories);
     }
-  };
+  }, []);
 
   // Učitaj kategorije kada se modal otvori
   useEffect(() => {
@@ -487,7 +487,7 @@ function AddItemModal({ show, onClose, categories, onItemAdded }) {
       console.log('🎯 Modal otvoren, učitavam kategorije...');
       updateCategoriesFromDatabase();
     }
-  }, [show]);
+  }, [show, updateCategoriesFromDatabase]);
 
   // Takođe ažuriraj kategorije ako se promeni categories prop
   useEffect(() => {
@@ -577,7 +577,7 @@ function AddItemModal({ show, onClose, categories, onItemAdded }) {
             
             {formData.newCategory && (
               <div className="mt-1 text-xs text-green-600">
-                ✅ Kreiraće se nova kategorija: "{formData.newCategory.toUpperCase()}"
+                ✅ Kreiraće se nova kategorija: &quot;{formData.newCategory.toUpperCase()}&quot;
               </div>
             )}
           </div>

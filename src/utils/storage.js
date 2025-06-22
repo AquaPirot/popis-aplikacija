@@ -224,8 +224,8 @@ export const listenToItems = (callback) => {
   return () => {};
 };
 
-// ===== EXPORT SVIH FUNKCIJA =====
-export default {
+// ===== EXPORT SVIH FUNKCIJA - FIKSIRAN ESLINT WARNING =====
+const storageModule = {
   // MySQL funkcije
   getItemsFromDatabase,
   addItemToDatabase,
@@ -244,3 +244,5 @@ export default {
   addItemToFirebase,
   listenToItems
 };
+
+export default storageModule;
